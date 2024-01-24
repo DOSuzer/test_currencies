@@ -1,6 +1,6 @@
 import pickle
 from collections import deque
-from datetime import datetime as dt
+from datetime import timedelta
 
 import redis
 import requests
@@ -16,7 +16,6 @@ from current.serializers import USDCurrencyRatesSerializer
 
 SERVICE_URL = 'https://openexchangerates.org/api/'
 redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORTT, db=0)
-redis_client.set('last_request', dt.timestamp(dt.now()) - INTERVAL)
 
 
 def get_currency_rate(pair: str, base: str) -> dict:
@@ -53,22 +52,18 @@ def get_previous_data(pair: str) -> deque:
 @require_http_methods(['GET'])
 def current_usd(request):
     """Вью функция получения курсов валютной пары USDRUB."""
-    base = 'USD'
-    currency = 'RUB'
-    dq = get_previous_data(base + currency)
-    now = dt.now()
-    last_request_timestamp = float(redis_client.get('last_request'))
+    if data := redis_client.get('last_request'):
+        return JsonResponse(pickle.loads(data))
 
-    if last_request_timestamp + INTERVAL >= dt.timestamp(now):
-        old_data = list(dq)
-        data = {base + currency: old_data[0]}
-        data['previous_data'] = old_data
-    else:
-        data = get_currency_rate(currency, base)
-        data['previous_data'] = list(dq)
-        if data.get(base + currency):
-            redis_client.set('last_request', dt.timestamp(now))
-            dq.appendleft(data[base + currency])
-            redis_client.set(base + currency, pickle.dumps(dq))
-
+    base: str = 'USD'
+    currency: str = 'RUB'
+    dq: deque = get_previous_data(base + currency)
+    data: dict = get_currency_rate(currency, base)
+    data['previous_data'] = list(dq)
+    if data.get(base + currency):
+        dq.appendleft(data[base + currency])
+        redis_client.set(base + currency, pickle.dumps(dq))
+    redis_client.setex('last_request',
+                       timedelta(seconds=INTERVAL),
+                       value=pickle.dumps(data))
     return JsonResponse(data)

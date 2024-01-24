@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7.0.8
+    container_name: redis
+    restart: unless-stopped
+    volumes:
+      - data.redis:/data
+    ports:
+      - '6379:6379'
+
+  backend:
+    container_name: django
+    build:
+      context: .
+      dockerfile: ./currency/Dockerfile
+    env_file:
+      - .env
+    restart: unless-stopped
+    working_dir: /app
+    command: bash -c 'python -m gunicorn currency.wsgi:application -b 0.0.0.0:8000'
+    ports:
+      - '8000:8000'
+    depends_on:
+      - redis
+    links:
+      - redis
+
+volumes:
+    data.redis:
+      name: data.redis

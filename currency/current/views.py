@@ -30,13 +30,12 @@ def get_currency_rate(pair: str, base: str) -> dict:
 
     if response.status_code != 200:
         return {'error': 'external service error'}
+
     serializer = USDCurrencyRatesSerializer(data=response.json())
+
     if serializer.is_valid():
         return {base+pair: serializer.validated_data['rates'][pair]}
-#    try:
-#        exchange_rate = response.json().get('rates').get(pair)
-#    except (AttributeError, KeyError):
-#        return {'error': 'Pair not found!'}
+
     return {'error': 'Pair not found!'}
 
 
